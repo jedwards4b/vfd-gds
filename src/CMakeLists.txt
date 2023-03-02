@@ -19,6 +19,7 @@ set(HDF5_VFD_GDS_BUILD_INCLUDE_DEPENDENCIES
 #------------------------------------------------------------------------------
 set(HDF5_VFD_GDS_SRCS
   ${CMAKE_CURRENT_SOURCE_DIR}/H5FDgds.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/backtrace.c
 )
 
 #------------------------------------------------------------------------------

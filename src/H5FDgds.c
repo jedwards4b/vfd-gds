@@ -33,7 +33,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cufile.h>
-
+#include <nvToolsExt.h>
 #include <pthread.h>
 
 #include "hdf5.h"
@@ -208,13 +208,19 @@ write_thread_fn(void *data)
 
     while (td->size > 0) {
         if (td->size > td->block_size) {
+	  // printf("Call cuFileWrite at line %d with size %d \n",__LINE__, td->size);
+	  nvtxRangePushA("cufilewrite large");
             ret = cuFileWrite(td->cfr_handle, td->wr_devPtr, td->block_size, td->offset, td->devPtr_offset);
+	    nvtxRangePop();
             td->offset += td->block_size;
             td->devPtr_offset += td->block_size;
             td->size -= td->block_size;
         }
         else {
+	  //printf("Call cuFileWrite at line %d with size %d\n",__LINE__,td->size);
+	  nvtxRangePushA("cufilewrite small");
             ret      = cuFileWrite(td->cfr_handle, td->wr_devPtr, td->size, td->offset, td->devPtr_offset);
+	    nvtxRangePop();
             td->size = 0;
         }
         assert(ret > 0);
@@ -1460,6 +1466,8 @@ H5FD__gds_write(H5FD_t *_file, H5FD_mem_t type, hid_t dxpl_id, haddr_t addr,
     (void)type;
     (void)dxpl_id;
 
+    //    printf("H5FD__gds_write called at line %d with size %d and type %d\n",__LINE__,size, type);
+    //    nvtxRangePushA("toplevel write");
     /* Check for overflow conditions */
     if (HADDR_UNDEF == addr)
         H5FD_GDS_GOTO_ERROR(H5E_ARGS, H5E_BADVALUE, FAIL, "addr undefined");
@@ -1468,6 +1476,7 @@ H5FD__gds_write(H5FD_t *_file, H5FD_mem_t type, hid_t dxpl_id, haddr_t addr,
 
     if (is_device_pointer(buf)) {
         /* CUfileError_t status; */
+      //printf("H5FD__gds_write called at line %d with size %d and type %d\n",__LINE__,size, type);
 
         /* TODO: register device memory only once */
         /*
@@ -1520,7 +1529,8 @@ H5FD__gds_write(H5FD_t *_file, H5FD_mem_t type, hid_t dxpl_id, haddr_t addr,
         }
         else {
             /* FIXME: max xfer size, need to batch transfers */
-            ret = cuFileWrite(file->cf_handle, buf, size, offset, 0);
+	  //printf("Call cuFileWrite at line %d with size %d\n",__LINE__,size);
+	  ret = cuFileWrite(file->cf_handle, buf, size, offset, 0);
             assert(ret > 0);
         }
 
@@ -1533,7 +1543,9 @@ H5FD__gds_write(H5FD_t *_file, H5FD_mem_t type, hid_t dxpl_id, haddr_t addr,
          */
     }
     else {
-        /* If the system doesn't require data to be aligned, read the data in
+      //printf("Not using CudaWrite\n");
+      //      print_trace();
+      /* If the system doesn't require data to be aligned, read the data in
          * the same way as sec2 driver.
          */
         _must_align = file->fa.must_align;
@@ -1719,7 +1731,7 @@ done:
         file->pos = HADDR_UNDEF;
         file->op  = OP_UNKNOWN;
     } /* end if */
-
+    //    nvtxRangePop();
     H5FD_GDS_FUNC_LEAVE_API;
 }
 
@@ -1979,6 +1991,8 @@ H5FD__gds_ctl(H5FD_t *_file, uint64_t op_code, uint64_t flags, const void *input
             else
                 cpyKind = cudaMemcpyHostToHost;
 
+	    //            printf("cpyKind = %d\n",cpyKind);
+	    
             check_cudaruntimecall(cudaMemcpy(dst, src, copy_args->len, cpyKind))
 
             break;
